@@ -47,3 +47,13 @@ data.json
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Screenshots and images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+
+# Development history
+.specstory/

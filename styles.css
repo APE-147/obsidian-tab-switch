@@ -1,0 +1,234 @@
+/* Tab Switch Plugin Styles */
+
+.tab-switch-bar {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  padding: 20px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  max-width: 80vw;
+  max-height: 60vh;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  /* 隐藏滚动条但保持滚动功能 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  -webkit-overflow-scrolling: touch;
+}
+
+.tab-switch-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  min-width: 200px;
+  max-width: 250px;
+  background: var(--background-secondary);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.tab-switch-item:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--interactive-accent);
+}
+
+.tab-switch-item.active {
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  transform: scale(1.05);
+}
+
+.tab-switch-item.active::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  background: var(--interactive-accent);
+  border-radius: 12px;
+  z-index: -1;
+  opacity: 0.3;
+}
+
+.tab-switch-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-align: center;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.tab-switch-path {
+  font-size: 12px;
+  opacity: 0.7;
+  text-align: center;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.tab-switch-item.active .tab-switch-path {
+  opacity: 0.9;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .tab-switch-bar {
+    flex-direction: column;
+    max-width: 90vw;
+    max-height: 70vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  
+  .tab-switch-item {
+    min-width: auto;
+    width: 100%;
+  }
+}
+
+/* 隐藏滚动条 */
+.tab-switch-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 滚动渐变提示 */
+.tab-switch-bar::before,
+.tab-switch-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.tab-switch-bar::before {
+  left: 0;
+  background: linear-gradient(to right, var(--background-primary), transparent);
+  border-radius: 12px 0 0 12px;
+}
+
+.tab-switch-bar::after {
+  right: 0;
+  background: linear-gradient(to left, var(--background-primary), transparent);
+  border-radius: 0 12px 12px 0;
+}
+
+/* 滚动指示器 - 提高可见性 */
+.tab-switch-bar.can-scroll-left::before {
+  opacity: 0.9;
+}
+
+.tab-switch-bar.can-scroll-right::after {
+  opacity: 0.9;
+}
+
+/* 确保渐变层级正确显示 */
+.tab-switch-bar {
+  position: relative;
+}
+
+.tab-switch-item {
+  position: relative;
+  z-index: 1;
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.tab-switch-bar {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* 键盘导航指示器 */
+.tab-switch-item.active::after {
+  content: '→';
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 18px;
+  font-weight: bold;
+  opacity: 0.8;
+}
+
+/* 暗色主题优化 */
+.theme-dark .tab-switch-bar {
+  background: rgba(30, 30, 30, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-dark .tab-switch-item {
+  background: rgba(50, 50, 50, 0.8);
+}
+
+.theme-dark .tab-switch-item:hover {
+  background: rgba(70, 70, 70, 0.9);
+}
+
+/* 暗色主题渐变优化 */
+.theme-dark .tab-switch-bar::before {
+  background: linear-gradient(to right, rgba(30, 30, 30, 0.95), transparent);
+}
+
+.theme-dark .tab-switch-bar::after {
+  background: linear-gradient(to left, rgba(30, 30, 30, 0.95), transparent);
+}
+
+/* 亮色主题优化 */
+.theme-light .tab-switch-bar {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.theme-light .tab-switch-item {
+  background: rgba(245, 245, 245, 0.8);
+}
+
+.theme-light .tab-switch-item:hover {
+  background: rgba(235, 235, 235, 0.9);
+}
+
+/* 亮色主题渐变优化 */
+.theme-light .tab-switch-bar::before {
+  background: linear-gradient(to right, rgba(255, 255, 255, 0.95), transparent);
+}
+
+.theme-light .tab-switch-bar::after {
+  background: linear-gradient(to left, rgba(255, 255, 255, 0.95), transparent);
+}

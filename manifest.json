@@ -1,0 +1,10 @@
+{
+  "id": "tab-switch",
+  "name": "Tab Switch",
+  "version": "1.6.0",
+  "minAppVersion": "0.15.0",
+  "description": "快速切换标签页的插件，支持快捷键显示tab切换栏，现已支持web viewer标签页",
+  "author": "Your Name",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}

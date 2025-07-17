@@ -70,6 +70,8 @@ class TabSwitcher {
       shift: false
     };
     this.comboKeysActive = false; // 组合键是否激活状态
+    this.hideTimer = null; // 自动隐藏定时器
+    this.showCurrentTab = false; // 是否显示当前标签页 (tab-0)
     this.createTabBar();
     
     // 添加一个备用的全局监听器，以防主要监听器被拦截
@@ -119,6 +121,9 @@ class TabSwitcher {
       .concat(this.app.workspace.getLeavesOfType('audio'))
       .concat(this.app.workspace.getLeavesOfType('canvas'))
       .concat(this.app.workspace.getLeavesOfType('excalidraw'));
+    
+    // 获取当前活跃的叶子节点用于后续过滤
+    const activeLeaf = this.app.workspace.activeLeaf;
     
     // 尝试获取可能的web viewer类型 - 扩展列表
     const webViewTypes = [
@@ -271,9 +276,6 @@ class TabSwitcher {
     
     console.log('Tab Switch Debug - Total leaves found:', leaves.length);
     
-    // 获取当前活跃的叶子节点
-    const activeLeaf = this.app.workspace.activeLeaf;
-    
     // 获取最近访问的文件列表
     let recentFiles = [];
     try {
@@ -326,9 +328,10 @@ class TabSwitcher {
       }
     });
     
-    // 处理所有标签页，然后按类型过滤
-    const allTabs = leaves
-      .filter(leaf => leaf !== activeLeaf) // 只排除当前所在页面
+    // 处理所有标签页，分别处理当前页面和其他页面
+    const currentTab = this.getTabInfo(activeLeaf);
+    const otherTabs = leaves
+      .filter(leaf => leaf !== activeLeaf) // 排除当前所在页面
       .map(leaf => this.getTabInfo(leaf))
       .filter(tab => tab !== null) // 过滤掉无效的标签页
       .filter(tab => {
@@ -340,6 +343,19 @@ class TabSwitcher {
         
         return isMarkdownFile || isWebViewer;
       });
+    
+    // 构建最终的tabs数组：根据showCurrentTab决定是否包含当前页面
+    let allTabs = [];
+    if (this.showCurrentTab && currentTab && (currentTab.type === 'file' || currentTab.type === 'web')) {
+      allTabs = [currentTab, ...otherTabs];
+      console.log('Tab Switch Debug - Including current tab in display at position 0');
+      console.log('Tab Switch Debug - Current tab title:', currentTab.title);
+      console.log('Tab Switch Debug - Other tabs:', otherTabs.map(t => t.title));
+    } else {
+      allTabs = otherTabs;
+      console.log('Tab Switch Debug - Hiding current tab from display');
+      console.log('Tab Switch Debug - Showing only other tabs:', otherTabs.map(t => t.title));
+    }
     
     console.log('Tab Switch Debug - All tabs processed:', allTabs.length);
     console.log('Tab Switch Debug - After type filtering (markdown + webviewer):', allTabs.length);
@@ -525,7 +541,7 @@ class TabSwitcher {
         };
       }
       
-      // 检查是否为markdown视图但没有直接的file属性
+      // 检查是否为markdown视图（包括没有文件的markdown视图）
       if (viewType === 'markdown' || (leaf.view && leaf.view.constructor.name === 'MarkdownView')) {
         // 尝试从视图数据中获取文件信息
         try {
@@ -551,6 +567,24 @@ class TabSwitcher {
               title: title,
               path: path,
               type: 'file'
+            };
+          } else {
+            // 即使没有文件，也将markdown视图作为file类型处理
+            if (leaf.view.getDisplayText && typeof leaf.view.getDisplayText === 'function') {
+              title = leaf.view.getDisplayText();
+            } else if (leaf.getDisplayText && typeof leaf.getDisplayText === 'function') {
+              title = leaf.getDisplayText();
+            } else {
+              title = 'Untitled';
+            }
+            path = `markdown:${leaf.id}`;
+            console.log('Tab Switch Debug - Found markdown view without file:', title);
+            return {
+              leaf,
+              file: null,
+              title: title,
+              path: path,
+              type: 'file' // 将markdown视图统一作为file类型
             };
           }
         } catch (e) {
@@ -594,7 +628,7 @@ class TabSwitcher {
         }
         
         // 检查是否是已知的web viewer类型
-        const webViewTypes = ['web-view', 'webview', 'browser-view', 'custom-frames', 'iframe', 'web-browser'];
+        const webViewTypes = ['web-view', 'webview', 'webviewer', 'browser-view', 'custom-frames', 'iframe', 'web-browser'];
         if (isWebViewer || webViewTypes.includes(viewType)) {
           // 尝试获取标题
           if (leaf.view.getDisplayText && typeof leaf.view.getDisplayText === 'function') {
@@ -688,6 +722,12 @@ class TabSwitcher {
         tabItem.classList.add('active');
       }
       
+      // 检查是否是当前tab（用于取消选择）
+      const activeLeaf = this.app.workspace.activeLeaf;
+      if (tab.leaf === activeLeaf) {
+        tabItem.classList.add('current-tab');
+      }
+      
       const tabTitle = document.createElement('div');
       tabTitle.className = 'tab-switch-title';
       tabTitle.textContent = tab.title;
@@ -733,15 +773,19 @@ class TabSwitcher {
     console.log('Tab Switch Debug - showTabBar called');
     
     this.isVisible = true;
-    // 新逻辑：默认选择第一个tab（索引0）
+    // 新逻辑：默认选择第一个tab（索引0），初始不显示当前tab
     this.currentIndex = 0;
     this.originalIndex = 0; // 记录原始位置，用于左键恢复
+    this.showCurrentTab = false; // 初始不显示当前tab
     this.renderTabBar();
     this.tabBar.style.display = 'flex';
     
     console.log('Tab Switch Debug - tabBar display set to flex');
     console.log('Tab Switch Debug - tabBar style:', this.tabBar.style.cssText);
     console.log('Tab Switch Debug - tabBar in DOM:', document.body.contains(this.tabBar));
+    
+    // 启动自动隐藏定时器
+    this.startHideTimer();
     
     // 确保初始状态下选中项可见
     setTimeout(() => {
@@ -758,23 +802,56 @@ class TabSwitcher {
     
     // 重置状态
     this.comboKeysActive = false;
+    this.showCurrentTab = false;
+    
+    // 清除自动隐藏定时器
+    this.clearHideTimer();
   }
   
   moveSelection(direction) {
     if (!this.isVisible) return;
     
-    const tabs = this.getTabs();
+    let tabs = this.getTabs();
     if (tabs.length === 0) return;
     
     this.tabItems[this.currentIndex]?.classList.remove('active');
     
     if (direction === 'left') {
-      this.currentIndex = (this.currentIndex - 1 + tabs.length) % tabs.length;
+      if (this.currentIndex === 0 && !this.showCurrentTab) {
+        // 在第一个tab按左键：显示当前tab，并选中它
+        console.log('Tab Switch Debug - Showing current tab at leftmost position');
+        this.showCurrentTab = true;
+        this.renderTabBar(); // 重新渲染以包含当前tab
+        // 重新获取tabs数组，因为现在包含了当前tab
+        tabs = this.getTabs();
+        this.currentIndex = 0; // 选中当前tab (现在是第一个)
+        console.log('Tab Switch Debug - Current tab now at position 0, total tabs:', tabs.length);
+      } else {
+        // 正常的左移
+        this.currentIndex = (this.currentIndex - 1 + tabs.length) % tabs.length;
+        console.log('Tab Switch Debug - Normal left move to index:', this.currentIndex);
+      }
     } else {
-      this.currentIndex = (this.currentIndex + 1) % tabs.length;
+      if (this.showCurrentTab && this.currentIndex === 0) {
+        // 从当前tab向右移动：隐藏当前tab，选中第一个其他tab
+        console.log('Tab Switch Debug - Hiding current tab, moving to first other tab');
+        this.showCurrentTab = false;
+        this.renderTabBar(); // 重新渲染，隐藏当前tab
+        // 重新获取tabs数组，因为现在不包含当前tab
+        tabs = this.getTabs();
+        this.currentIndex = 0; // 选中第一个非当前tab
+        console.log('Tab Switch Debug - Current tab hidden, now at position 0, total tabs:', tabs.length);
+      } else {
+        // 正常的右移
+        this.currentIndex = (this.currentIndex + 1) % tabs.length;
+        console.log('Tab Switch Debug - Normal right move to index:', this.currentIndex);
+      }
     }
     
     this.tabItems[this.currentIndex]?.classList.add('active');
+    
+    // 重新启动自动隐藏定时器
+    this.startHideTimer();
     
     // 确保选中的标签页在可视区域内
     this.scrollToActiveTab();
@@ -783,37 +860,6 @@ class TabSwitcher {
     this.updateScrollIndicators();
   }
   
-  returnToCurrentTabPosition() {
-    if (!this.isVisible) return;
-    
-    const tabs = this.getTabs();
-    const activeLeaf = this.app.workspace.activeLeaf;
-    
-    // 找到当前活跃tab在过滤后列表中的位置
-    let currentTabIndex = -1;
-    for (let i = 0; i < tabs.length; i++) {
-      if (tabs[i].leaf === activeLeaf) {
-        currentTabIndex = i;
-        break;
-      }
-    }
-    
-    if (currentTabIndex !== -1) {
-      // 找到了当前tab在列表中的位置
-      this.tabItems[this.currentIndex]?.classList.remove('active');
-      this.currentIndex = currentTabIndex;
-      this.tabItems[this.currentIndex]?.classList.add('active');
-      
-      // 确保选中的标签页在可视区域内
-      this.scrollToActiveTab();
-      this.updateScrollIndicators();
-      
-      console.log('Tab Switch Debug - Returned to current tab position:', currentTabIndex);
-    } else {
-      // 当前tab不在过滤后的列表中，保持在第一个位置
-      console.log('Tab Switch Debug - Current tab not in filtered list, staying at first position');
-    }
-  }
   
   switchToSelectedTab() {
     if (!this.isVisible) return;
@@ -822,6 +868,16 @@ class TabSwitcher {
     const selectedTab = tabs[this.currentIndex];
     
     if (selectedTab) {
+      // 检查是否选中的是当前tab（取消选择的情况）
+      const activeLeaf = this.app.workspace.activeLeaf;
+      if (selectedTab.leaf === activeLeaf) {
+        // 选中的是当前tab，只隐藏选择栏，不切换
+        console.log('Tab Switch Debug - Selected current tab, canceling selection');
+        this.hideTabBar();
+        return;
+      }
+      
+      // 切换到选中的tab
       this.app.workspace.setActiveLeaf(selectedTab.leaf);
       
       // 确保编辑器获得焦点
@@ -883,7 +939,15 @@ class TabSwitcher {
           this.moveSelection('right');
           event.preventDefault();
           return;
+        } else if (event.key === 'Escape') {
+          // ESC键取消选择
+          this.hideTabBar();
+          event.preventDefault();
+          return;
         }
+        
+        // 重新启动自动隐藏定时器（当有键盘活动时）
+        this.startHideTimer();
       }
     } else {
       // 原有的单键模式
@@ -906,15 +970,14 @@ class TabSwitcher {
       
       if (this.isVisible && this.keyPressed) {
         if (event.key === 'ArrowLeft') {
-          // 特殊逻辑：如果当前在第一个tab，回到当前tab位置；否则正常向左移动
-          if (this.currentIndex === 0) {
-            this.returnToCurrentTabPosition();
-          } else {
-            this.moveSelection('left');
-          }
+          this.moveSelection('left');
           event.preventDefault();
         } else if (event.key === 'ArrowRight') {
           this.moveSelection('right');
+          event.preventDefault();
+        } else if (event.key === 'Escape') {
+          // ESC键取消选择
+          this.hideTabBar();
           event.preventDefault();
         }
       }
@@ -1117,12 +1180,32 @@ class TabSwitcher {
     // console.log('Scroll indicators:', { canScrollLeft, canScrollRight, scrollLeft, scrollWidth, clientWidth, currentIndex: this.currentIndex });
   }
   
+  // 启动自动隐藏定时器
+  startHideTimer() {
+    this.clearHideTimer();
+    this.hideTimer = setTimeout(() => {
+      if (this.isVisible) {
+        this.hideTabBar();
+      }
+    }, 2000); // 2秒后自动隐藏
+  }
+  
+  // 清除自动隐藏定时器
+  clearHideTimer() {
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer);
+      this.hideTimer = null;
+    }
+  }
+  
   destroy() {
     this.tabBar?.remove();
     // 清理备用监听器
     if (this.backupKeyListener) {
       window.removeEventListener('keydown', this.backupKeyListener, true);
     }
+    // 清理定时器
+    this.clearHideTimer();
   }
 }
 

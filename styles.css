@@ -187,6 +187,32 @@
   opacity: 0.8;
 }
 
+/* 当前标签页（取消选择）样式 */
+.tab-switch-item.current-tab {
+  background: var(--background-modifier-form-field);
+  border-color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.tab-switch-item.current-tab .tab-switch-title {
+  color: var(--text-muted);
+}
+
+.tab-switch-item.current-tab .tab-switch-path {
+  opacity: 0.5;
+}
+
+.tab-switch-item.current-tab.active {
+  background: var(--background-modifier-hover);
+  border-color: var(--text-accent);
+  opacity: 1;
+}
+
+.tab-switch-item.current-tab.active::after {
+  content: '✕';
+  color: var(--text-accent);
+}
+
 /* 暗色主题优化 */
 .theme-dark .tab-switch-bar {
   background: rgba(30, 30, 30, 0.95);
